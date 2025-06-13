@@ -1,0 +1,34 @@
+# .github/workflows/use-secret.yml
+name: Use Secret Demo
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      pr_branch:
+        description: "Fork branch name (optional for manual run)"
+        required: false
+      pr_repo:
+        description: "Fork repo name (owner/repo)"
+        required: false
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.pr_repo || github.repository }}
+          ref: ${{ github.event.inputs.pr_branch || github.ref_name }}
+
+      - name: Run normal step
+        run: echo "Running without secrets."
+
+      - name: Print secret (skipped for fork PRs)
+        if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          echo "The secret is: $SECRET"
+        env:
+          SECRET: ${{ secrets.SECRET }}
