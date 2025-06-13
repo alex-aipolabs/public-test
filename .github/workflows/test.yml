@@ -2,33 +2,28 @@
 name: Use Secret Demo
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
     inputs:
       pr_branch:
-        description: "Fork branch name (optional for manual run)"
-        required: false
+        description: "Fork branch name"
+        required: true
       pr_repo:
-        description: "Fork repo name (owner/repo)"
-        required: false
+        description: "Fork repo (username/repo)"
+        required: true
 
 jobs:
-  demo:
+  secure-job:
     runs-on: ubuntu-latest
+    environment: secure  # 🔐 this triggers required approval
     steps:
-      - name: Checkout code
+      - name: Checkout fork code
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.inputs.pr_repo || github.repository }}
-          ref: ${{ github.event.inputs.pr_branch || github.ref_name }}
+          repository: ${{ github.event.inputs.pr_repo }}
+          ref: ${{ github.event.inputs.pr_branch }}
 
-      - name: Run normal step
-        run: echo "Running without secrets."
-
-      - name: Print secret (skipped for fork PRs)
-        if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+      - name: Use secret (after approval)
         run: |
-          echo "The secret is: $SECRET"
+          echo "Using secret: $SECRET"
         env:
           SECRET: ${{ secrets.SECRET }}
