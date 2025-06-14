@@ -1,31 +1,65 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
-jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/executor-intro/ & https://circleci.com/docs/configuration-reference/#executor-job
-    docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
-      - image: cimg/base:current
-
-    # Add steps to the job
-    # See: https://circleci.com/docs/jobs-steps/#steps-overview & https://circleci.com/docs/configuration-reference/#steps
-    steps:
-      # Checkout the code as the first step.
-      - checkout
-      - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
-
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  gate-and-deploy:
     jobs:
-      - say-hello
+      - test
+      - decide-next-step:
+          requires:
+            - test
+      - wait-for-approval:
+          type: approval
+          requires:
+            - decide-next-step
+          filters:
+            branches:
+              only: main
+      - deploy:
+          requires:
+            - decide-next-step
+            - wait-for-approval
+
+jobs:
+  test:
+    docker:
+      - image: cimg/node:20.5
+    steps:
+      - checkout
+      - run: echo "✅ Tests run on all PRs"
+
+  decide-next-step:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: Check for forked PR
+          command: |
+            if [ "$CIRCLE_PR_USERNAME" != "$CIRCLE_PROJECT_USERNAME" ]; then
+              echo "This is a forked PR. Requiring approval."
+              echo "export NEEDS_APPROVAL=true" >> needs_approval.env
+            else
+              echo "This is a collaborator PR. Proceeding without approval."
+              echo "export NEEDS_APPROVAL=false" >> needs_approval.env
+            fi
+      - persist_to_workspace:
+          root: .
+          paths:
+            - needs_approval.env
+
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Use secrets
+          command: |
+            source needs_approval.env
+            if [ "$NEEDS_APPROVAL" = "true" ]; then
+              echo "❌ Should not be here without approval."
+              exit 1
+            fi
+            echo "🔐 Deploying with secrets: $MY_SECRET"
+    environment:
+      MY_SECRET: "${MY_SECRET}"
