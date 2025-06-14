@@ -19,7 +19,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - .bash_env
+            - $BASH_ENV
 
   hold-if-fork:
     docker:
@@ -30,7 +30,7 @@ jobs:
       - run:
           name: "Check if approval needed"
           command: |
-            source .bash_env
+            source $BASH_ENV
             if [ "$REQUIRE_APPROVAL" = "true" ]; then
               echo "Approval required for fork"
               exit 1
