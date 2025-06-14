@@ -16,14 +16,28 @@ jobs:
               echo "export REQUIRE_APPROVAL=false" >> $BASH_ENV
             fi
       - run: source $BASH_ENV
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .bash_env
 
   hold-if-fork:
     docker:
       - image: cimg/base:stable
     steps:
+      - attach_workspace:
+          at: .
       - run:
-          name: "Approval step"
-          command: echo "Waiting for approval"
+          name: "Check if approval needed"
+          command: |
+            source .bash_env
+            if [ "$REQUIRE_APPROVAL" = "true" ]; then
+              echo "Approval required for fork"
+              exit 1
+            else
+              echo "No approval needed for internal PR"
+              exit 0
+            fi
 
   test:
     docker:
@@ -36,7 +50,6 @@ workflows:
     jobs:
       - detect-fork
       - hold-if-fork:
-          type: approval
           requires:
             - detect-fork
           filters:
@@ -44,4 +57,5 @@ workflows:
               only: /.*/  # adjust as needed
       - test:
           requires:
+            - detect-fork
             - hold-if-fork
