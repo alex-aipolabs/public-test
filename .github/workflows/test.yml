@@ -17,7 +17,6 @@ on:
 jobs:
   secure-job:
     runs-on: ubuntu-latest
-    environment: secure  # 🔐 this triggers required approval
     steps:
       - name: Checkout fork code
         uses: actions/checkout@v4
