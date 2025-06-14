@@ -1,6 +1,6 @@
 name: Run tests from fork
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize]
 jobs:
   demo:
@@ -9,8 +9,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{  github.event.pull_request.head.sha }} # This is dangerous without the first access check
       - name: Run tests
         run: |
           if [[ "x${{ secrets.SECRET }}" == "xval" ]]; then
