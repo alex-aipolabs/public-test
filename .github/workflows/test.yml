@@ -27,7 +27,7 @@ jobs:
           ref: ${{  github.event.pull_request.head.sha }} # This is dangerous without the first access check
       - name: Run tests
         run: |
-          if [[ "x${{ secrets.SECRET }}" == "xval" ]]; then
+          if [[ "${{ secrets.SECRET }}" == "xval" ]]; then
             echo "Access to secrets"
           else
             echo "No access to secrets"
