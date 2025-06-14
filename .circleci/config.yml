@@ -1,63 +1,47 @@
 version: 2.1
 
-workflows:
-  gate-and-deploy:
-    jobs:
-      - test
-      - decide-next-step:
-          requires:
-            - test
-      - wait-for-approval:
-          type: approval
-          requires:
-            - decide-next-step
-          filters:
-            branches:
-              only: main
-      - deploy:
-          requires:
-            - decide-next-step
-            - wait-for-approval
-
 jobs:
+  detect-fork:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: "Check if this is a fork"
+          command: |
+            if [ -n "$CIRCLE_PR_USERNAME" ]; then
+              echo "This is a fork. Requiring approval."
+              echo "export REQUIRE_APPROVAL=true" >> $BASH_ENV
+            else
+              echo "Internal PR or branch."
+              echo "export REQUIRE_APPROVAL=false" >> $BASH_ENV
+            fi
+      - run: source $BASH_ENV
+
+  hold-if-fork:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: "Approval step"
+          command: echo "Waiting for approval"
+
   test:
     docker:
-      - image: cimg/node:20.5
-    steps:
-      - checkout
-      - run: echo "✅ Tests run on all PRs"
-
-  decide-next-step:
-    docker:
       - image: cimg/base:stable
     steps:
-      - run:
-          name: Check for forked PR
-          command: |
-            if [ "$CIRCLE_PR_USERNAME" != "$CIRCLE_PROJECT_USERNAME" ]; then
-              echo "This is a forked PR. Requiring approval."
-              echo "export NEEDS_APPROVAL=true" >> needs_approval.env
-            else
-              echo "This is a collaborator PR. Proceeding without approval."
-              echo "export NEEDS_APPROVAL=false" >> needs_approval.env
-            fi
-      - persist_to_workspace:
-          root: .
-          paths:
-            - needs_approval.env
+      - run: echo "Running tests..."
 
-  deploy:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Use secrets
-          command: |
-            source needs_approval.env
-            if [ "$NEEDS_APPROVAL" = "true" ]; then
-              echo "❌ Should not be here without approval."
-              exit 1
-            fi
-            echo "🔐 Deploying with secrets: $MY_SECRET"
+workflows:
+  fork-aware:
+    jobs:
+      - detect-fork
+      - hold-if-fork:
+          type: approval
+          requires:
+            - detect-fork
+          filters:
+            branches:
+              only: /.*/  # adjust as needed
+      - test:
+          requires:
+            - hold-if-fork
