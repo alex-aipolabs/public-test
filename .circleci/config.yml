@@ -1,65 +1,58 @@
 version: 2.1
 
-workflows:
-  gate-and-deploy:
-    jobs:
-      - test
-      - decide-next-step:
-          requires:
-            - test
-      - wait-for-approval:
-          type: approval
-          requires:
-            - decide-next-step
-          filters:
-            branches:
-              only: main
-      - deploy:
-          requires:
-            - decide-next-step
-            - wait-for-approval
-
 jobs:
-  test:
+  run_tests:
     docker:
-      - image: cimg/node:20.5
+      - image: cimg/base:stable
     steps:
       - checkout
-      - run: echo "✅ Tests run on all PRs"
+      - run: echo "Running tests..."
 
-  decide-next-step:
+  fork_guard:
     docker:
       - image: cimg/base:stable
     steps:
       - run:
-          name: Check for forked PR
+          name: "Check fork status"
           command: |
-            if [ "$CIRCLE_PR_USERNAME" != "$CIRCLE_PROJECT_USERNAME" ]; then
+            if [ -n "$CIRCLE_PR_USERNAME" ]; then
               echo "This is a forked PR. Requiring approval."
-              echo "export NEEDS_APPROVAL=true" >> needs_approval.env
+              echo "true" > fork_status.txt
             else
-              echo "This is a collaborator PR. Proceeding without approval."
-              echo "export NEEDS_APPROVAL=false" >> needs_approval.env
+              echo "This is not a fork. Proceeding."
+              echo "false" > fork_status.txt
             fi
       - persist_to_workspace:
           root: .
           paths:
-            - needs_approval.env
+            - fork_status.txt
 
-  deploy:
+  approve_if_fork:
     docker:
       - image: cimg/base:stable
     steps:
       - attach_workspace:
           at: .
       - run:
-          name: Use secrets
+          name: "Check if approval needed"
           command: |
-            source needs_approval.env
-            if [ "$NEEDS_APPROVAL" = "true" ]; then
-              echo "❌ Should not be here without approval."
+            if [ "$(cat fork_status.txt)" = "true" ]; then
+              echo "Approval required for fork"
               exit 1
+            else
+              echo "No approval needed for internal PR"
+              exit 0
             fi
-            echo "🔐 Deploying with secrets: $MY_SECRET"
-    environment:
-      MY_SECRET: << pipeline.parameters.my_secret >>
+
+workflows:
+  version: 2
+  conditional_workflow:
+    jobs:
+      - fork_guard
+      - approve_if_fork:
+          requires:
+            - fork_guard
+      - run_tests:
+          requires:
+            - fork_guard
+            - approve_if_fork
