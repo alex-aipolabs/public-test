@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   is_fork:
     type: boolean
-    default: << pipeline.env.CIRCLE_PR_USERNAME != null >>
+    default: false
 
 jobs:
   run_tests:
