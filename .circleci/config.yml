@@ -16,10 +16,32 @@ jobs:
           name: "Check fork status"
           command: |
             if [ -n "$CIRCLE_PR_USERNAME" ]; then
-              echo "This is a forked PR. Skipping."
-              circleci-agent step halt
+              echo "This is a forked PR. Requiring approval."
+              echo "true" > fork_status.txt
             else
               echo "This is not a fork. Proceeding."
+              echo "false" > fork_status.txt
+            fi
+      - persist_to_workspace:
+          root: .
+          paths:
+            - fork_status.txt
+
+  approve_if_fork:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Check if approval needed"
+          command: |
+            if [ "$(cat fork_status.txt)" = "true" ]; then
+              echo "Approval required for fork"
+              exit 1
+            else
+              echo "No approval needed for internal PR"
+              exit 0
             fi
 
 workflows:
@@ -27,10 +49,10 @@ workflows:
   conditional_workflow:
     jobs:
       - fork_guard
-      - approve_if_not_fork:
-          type: approval
+      - approve_if_fork:
           requires:
             - fork_guard
       - run_tests:
           requires:
-            - approve_if_not_fork
+            - fork_guard
+            - approve_if_fork
