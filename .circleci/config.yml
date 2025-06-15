@@ -4,6 +4,9 @@ parameters:
   is_fork:
     type: boolean
     default: false
+  is_internal:
+    type: boolean
+    default: true
 
 jobs:
   run_tests:
@@ -24,6 +27,6 @@ workflows:
             - approve
 
   internal_workflow:
-    when: << !pipeline.parameters.is_fork >>
+    when: << pipeline.parameters.is_internal >>
     jobs:
       - run_tests
