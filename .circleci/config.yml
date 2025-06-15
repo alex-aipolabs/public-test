@@ -1,5 +1,10 @@
 version: 2.1
 
+parameters:
+  is_fork:
+    type: boolean
+    default: << pipeline.env.CIRCLE_PR_USERNAME != null >>
+
 jobs:
   run_tests:
     docker:
@@ -22,8 +27,3 @@ workflows:
     when: << !pipeline.parameters.is_fork >>
     jobs:
       - run_tests
-
-parameters:
-  is_fork:
-    type: boolean
-    default: << pipeline.env.CIRCLE_PR_USERNAME != null >>
