@@ -15,6 +15,7 @@ jobs:
     steps:
       - checkout
       - run: echo "Running tests..."
+      - run: echo "$MY_SECRET"
 
 workflows:
   fork_workflow:
