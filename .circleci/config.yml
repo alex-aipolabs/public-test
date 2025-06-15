@@ -1,61 +1,36 @@
 version: 2.1
 
 jobs:
-  detect-fork:
+  run_tests:
     docker:
       - image: cimg/base:stable
     steps:
-      - run:
-          name: "Check if this is a fork"
-          command: |
-            if [ -n "$CIRCLE_PR_USERNAME" ]; then
-              echo "This is a fork. Requiring approval."
-              echo "export REQUIRE_APPROVAL=true" >> $BASH_ENV
-            else
-              echo "Internal PR or branch."
-              echo "export REQUIRE_APPROVAL=false" >> $BASH_ENV
-            fi
-      - run: source $BASH_ENV
-      - persist_to_workspace:
-          root: .
-          paths:
-            - $BASH_ENV
-
-  hold-if-fork:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: "Check if approval needed"
-          command: |
-            source $BASH_ENV
-            if [ "$REQUIRE_APPROVAL" = "true" ]; then
-              echo "Approval required for fork"
-              exit 1
-            else
-              echo "No approval needed for internal PR"
-              exit 0
-            fi
-
-  test:
-    docker:
-      - image: cimg/base:stable
-    steps:
+      - checkout
       - run: echo "Running tests..."
 
+  fork_guard:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: "Check fork status"
+          command: |
+            if [ -n "$CIRCLE_PR_USERNAME" ]; then
+              echo "This is a forked PR. Skipping."
+              circleci-agent step halt
+            else
+              echo "This is not a fork. Proceeding."
+            fi
+
 workflows:
-  fork-aware:
+  version: 2
+  conditional_workflow:
     jobs:
-      - detect-fork
-      - hold-if-fork:
+      - fork_guard
+      - approve_if_not_fork:
+          type: approval
           requires:
-            - detect-fork
-          filters:
-            branches:
-              only: /.*/  # adjust as needed
-      - test:
+            - fork_guard
+      - run_tests:
           requires:
-            - detect-fork
-            - hold-if-fork
+            - approve_if_not_fork
