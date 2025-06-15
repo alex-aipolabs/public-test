@@ -8,51 +8,22 @@ jobs:
       - checkout
       - run: echo "Running tests..."
 
-  fork_guard:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - run:
-          name: "Check fork status"
-          command: |
-            if [ -n "$CIRCLE_PR_USERNAME" ]; then
-              echo "This is a forked PR. Requiring approval."
-              echo "true" > fork_status.txt
-            else
-              echo "This is not a fork. Proceeding."
-              echo "false" > fork_status.txt
-            fi
-      - persist_to_workspace:
-          root: .
-          paths:
-            - fork_status.txt
-
-  approve_if_fork:
-    docker:
-      - image: cimg/base:stable
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: "Check if approval needed"
-          command: |
-            if [ "$(cat fork_status.txt)" = "true" ]; then
-              echo "Approval required for fork"
-              exit 1
-            else
-              echo "No approval needed for internal PR"
-              exit 0
-            fi
-
 workflows:
-  version: 2
-  conditional_workflow:
+  fork_workflow:
+    when: << pipeline.parameters.is_fork >>
     jobs:
-      - fork_guard
-      - approve_if_fork:
-          requires:
-            - fork_guard
+      - approve:
+          type: approval
       - run_tests:
           requires:
-            - fork_guard
-            - approve_if_fork
+            - approve
+
+  internal_workflow:
+    when: << !pipeline.parameters.is_fork >>
+    jobs:
+      - run_tests
+
+parameters:
+  is_fork:
+    type: boolean
+    default: << pipeline.env.CIRCLE_PR_USERNAME != null >>
